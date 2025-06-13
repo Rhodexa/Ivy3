@@ -1,5 +1,6 @@
 #pragma once
 #include "outlet.h"
+#include "time.h"
 
 extern const int N_OUTLETS;
 extern Outlet outlet[];  // or Outlet* outlet;

@@ -8,23 +8,17 @@
 #include "ArduinoOTA.h"
 #include "nutsnbolts.h"
 #include "ui.h"
-#include "time.h"
 #include "DHT.h"
 
 DHT dht(4, DHT11);
 
 /*/////////////////////////////////////////////////// Mi oficina // */
 int sensor_update_seconds_counter = 0;
-int ntp_update_timer = 0;
 void updateSensors(){
   if(sensor_update_seconds_counter > 9){
     sensor_update_seconds_counter = 0;
 
-    ntp_update_timer++;
-    if(ntp_update_timer > 360){
-      ntp_ok = getLocalTime(&timeinfo);
-      ntp_update_timer = 0;
-    }
+    ntp_ok = getLocalTime(&timeinfo);
 
     float t = dht.readTemperature();
     if (!isnan(t)) sensors.temperature = (int)t;
@@ -121,6 +115,7 @@ void setup() {
 
 auto current_millis = millis();
 auto last_millis = millis();
+auto last_update_millis = current_millis;
 void loop() {
   ArduinoOTA.handle();
   ui_loop();
@@ -135,6 +130,26 @@ void loop() {
       outlet[i].update();
     }
   }
+  if(current_millis - last_update_millis > 2*86400000) // Dos días
+  {
+    last_update_millis = current_millis;
+    ntp_ok = 0;
+    configTime(-3600*3, 0, "pool.ntp.org", "time.nist.gov", "time.google.com");
+    Serial.println("Waiting for NTP time...");
+    int attempts = 0;
+    while (!getLocalTime(&timeinfo) && attempts++ < 10) {
+      Serial.println("NTP not yet available...");
+      delay(1000);
+    }
+    if (attempts >= 10) {
+      Serial.println("NTP sync failed!");
+      digitalWrite(LED_BUILTIN, 1);  // Your LED error handler
+    } else {
+      Serial.println("NTP sync successful:");
+      Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+      ntp_ok = 1;
+    }
+  }
 }
 
 
@@ -147,9 +162,7 @@ void loop() {
 /*//// Herramientas // */
 
 bool entre_horas(int a, int b) {
-  if (a <= b){
-    return (a <= timeinfo.tm_hour) && (timeinfo.tm_hour < b);
-  }
+  if (a <= b) return (a <= timeinfo.tm_hour) && (timeinfo.tm_hour < b);
   return (timeinfo.tm_hour >= a) || (timeinfo.tm_hour < b);
 }
 
